@@ -76,6 +76,13 @@ GROUP_NAME = os.environ.get("GROUP_NAME", DISPLAY_BRAND)
 # puts the username in the name of every config the client imports.
 HOST_REMARK = os.environ.get("INBOUND_REMARK", DISPLAY_BRAND + " \u2022 {USERNAME}")
 
+# The address written into configs when nothing has told us the real one yet.
+# Deliberately not a host anything answers on, so a config carrying it is
+# obviously unfinished rather than subtly wrong. autohost.py refuses to trust it
+# if it ever turns up as real traffic.
+PLACEHOLDERS = ("CHANGE-ME.up.railway.app",)
+PLACEHOLDER = PLACEHOLDERS[0]
+
 # What builds before this one wrote. The steps below rewrite an installation
 # that already carries these, in place, so a redeploy does not end up with a
 # duplicate group, a second core fighting for the same port, or a host pointing
@@ -483,9 +490,9 @@ def host_body(host: str) -> dict:
 def ensure_host(token) -> int | None:
     host = public_host()
     if not host:
-        warn("PUBLIC_HOST is empty -- the share link will carry a placeholder address")
-        warn("run `railway domain` (or Generate Domain in the dashboard) and redeploy")
-        host = "CHANGE-ME.up.railway.app"
+        warn("nothing has told this container its own address -- configs will carry a")
+        warn(f"placeholder ({PLACEHOLDER}) until the first visit, which teaches it")
+        host = PLACEHOLDER
 
     code, res = call("/api/hosts", token=token)
     hosts = unwrap(res, "hosts")

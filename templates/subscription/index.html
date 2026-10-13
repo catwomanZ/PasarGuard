@@ -741,6 +741,75 @@ img,svg{max-width:100%}
 
   var $ = function(id){ return document.getElementById(id); };
 
+  /* ---------- the address inside every config ----------
+     The panel writes these links from the address in its host record, and that
+     record can be empty, stale, or a placeholder -- an install whose domain was
+     regenerated, or one where the platform never handed the container a domain
+     at all. When that happens every config looks perfectly well formed and not
+     one of them connects, because the address inside is not an address anybody
+     answers on. The page keeps working, which is the confusing part: it builds
+     its own URL from the browser, so it is right while everything it hands out
+     is wrong.
+
+     This page is, at this moment, being read on an address that demonstrably
+     works -- the one in the address bar. So the configs are rewired to that
+     address: the host after the @, and the host= and sni= parameters, which are
+     what actually decide where TLS is addressed. If the panel left those two
+     parameters out entirely they are added, because a config without them
+     cannot connect either.
+
+     Runs before anything else here, so the copy buttons, the QR codes and the
+     "copy all" all see the corrected links.
+     ----------------------------------------------------------------------- */
+  (function(){
+    var here = location.hostname;
+    if (!here || here.indexOf('.') < 0) return;             // localhost, a bare name
+    if (/^[0-9.]+$/.test(here) || here.indexOf(':') >= 0) return;  // an IP literal
+    if (here === 'CHANGE-ME.up.railway.app') return;        // nowhere to point to
+
+    function fix(s){
+      if (!s || s.indexOf('://') < 0) return s;
+      var hash = '', qi, head, query, out;
+      var h = s.indexOf('#');
+      if (h >= 0){ hash = s.slice(h); s = s.slice(0, h); }
+      qi = s.indexOf('?');
+      head = qi >= 0 ? s.slice(0, qi) : s;
+      query = qi >= 0 ? s.slice(qi + 1) : '';
+
+      // the host between the last @ and the port
+      head = head.replace(/@([^\/?#]+)$/, function(m, authority){
+        var hp = authority.split(':')[0];
+        return hp && hp !== here ? '@' + here + authority.slice(hp.length) : m;
+      });
+
+      var params = query ? query.split('&') : [], i, kv, k;
+      var gotHost = false, gotSni = false;
+      out = [];
+      for (i = 0; i < params.length; i++){
+        kv = params[i].split('=');
+        k = (kv[0] || '').toLowerCase();
+        if (k === 'host'){ out.push('host=' + encodeURIComponent(here)); gotHost = true; }
+        else if (k === 'sni'){ out.push('sni=' + encodeURIComponent(here)); gotSni = true; }
+        else if (params[i]) out.push(params[i]);
+      }
+      if (!gotHost) out.push('host=' + encodeURIComponent(here));
+      if (!gotSni)  out.push('sni='  + encodeURIComponent(here));
+
+      return head + (out.length ? '?' + out.join('&') : '') + hash;
+    }
+
+    var ATTRS = ['data-copy', 'data-qr', 'data-name', 'data-tags'];
+    var els = document.querySelectorAll('[data-copy],[data-qr],[data-name],[data-tags]');
+    for (var i = 0; i < els.length; i++){
+      for (var j = 0; j < ATTRS.length; j++){
+        var v = els[i].getAttribute(ATTRS[j]);
+        if (!v) continue;
+        var fixed = fix(v);
+        if (fixed !== v) els[i].setAttribute(ATTRS[j], fixed);
+      }
+    }
+  })();
+
   function say(msg){
     var t = $('toast'), s = $('toastt');
     if (!t || !s) return;

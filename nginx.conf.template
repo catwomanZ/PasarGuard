@@ -25,6 +25,12 @@ http {
         ''      close;
     }
 
+    # One line per panel request, holding nothing but the Host header. Reads as
+    # noise; it is the raw material autohost.py uses to work out which address
+    # this panel is really being reached on. Written to a file, never to stdout,
+    # because it is machinery and not something a person wants to scroll past.
+    log_format cwhost '$host';
+
     server {
         listen @@HTTP_PORT@@;
         listen [::]:@@HTTP_PORT@@;
@@ -56,6 +62,8 @@ http {
         # untouched so the panel's own route table decides.
         location / {
             proxy_pass http://127.0.0.1:@@PANEL_PORT@@;
+            access_log /dev/stdout;
+            access_log /tmp/cw_host.log cwhost;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection $connection_upgrade;

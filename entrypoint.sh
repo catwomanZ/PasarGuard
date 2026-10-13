@@ -148,6 +148,8 @@ sed -e "s|@@HTTP_PORT@@|$HTTP_PORT|g" \
 nginx -t -c /tmp/nginx.conf || die "the rendered nginx config is invalid"
 log "starting nginx on :$HTTP_PORT"
 nginx -c /tmp/nginx.conf -g 'daemon off;' &
+  NGINX_PID=$!
+  sleep 2
 
   log "ready -- panel and node are running"
 
@@ -172,11 +174,32 @@ nginx -c /tmp/nginx.conf -g 'daemon off;' &
   XRAY_EXECUTABLE_PATH=/usr/local/bin/xray \
   python /opt/selftest.py &
 
+  # --------------------------------------------------------------------------
+  # learn this container's own public address, from real traffic
+  # --------------------------------------------------------------------------
+  # nginx writes the Host header of every panel request to /tmp/cw_host.log.
+  # autohost.py reads it, and when the address people actually arrive on is not
+  # the one in the panel's host record, it fixes the record. That is what makes
+  # the address self-healing: a regenerated domain, or a deployment the platform
+  # never gave a domain to at all, repairs itself on the first visit instead of
+  # handing out configs that point at an address nobody answers on.
+  DATA_DIR="$DATA_DIR" \
+  PANEL_URL="http://127.0.0.1:$PANEL_PORT" \
+  HOST_LOG=/tmp/cw_host.log \
+  ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
+  ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}" \
+  INBOUND_PORT="$INBOUND_PORT" \
+  TUNNEL_PATH="$TUNNEL_PATH" \
+  BRAND="$BRAND" \
+  python /opt/autohost.py &
+  log "watching for this panel's own address"
+
 # --------------------------------------------------------------------------
 # supervise: if the panel dies, the container should die so Railway restarts it
 # --------------------------------------------------------------------------
 while true; do
   kill -0 "$PANEL_PID" 2>/dev/null || die "the panel stopped"
   kill -0 "$NODE_PID"  2>/dev/null || die "the node stopped"
+  kill -0 "$NGINX_PID" 2>/dev/null || die "nginx stopped"
   sleep 5
 done
