@@ -408,7 +408,32 @@ def public_host() -> str:
 
 
 def host_body(host: str) -> dict:
-    """What a host looks like, shared by the create and the rename path."""
+    """What a host looks like, shared by the create and the rename path.
+
+    sni and host are both set to the public address, and they have to be.
+
+    They were empty until now, and the config it produced did not connect.
+    Here is why, from app/subscription/share.py:
+
+        sni = ""
+        if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
+            sni = random.choice(inbound.tls_config.sni)
+        ...
+        host_list = inbound.transport_config.host
+        if isinstance(host_list, list) and host_list:
+            req_host = random.choice(host_list)
+
+    Both are read straight off this record. Empty on both, and the link comes
+    out with no ?sni= and no &host= at all -- the builder strips empty values
+    before it writes the query string, so the config looks fine and simply
+    does not connect.
+
+    On Railway this matters more than usual. TLS ends at the platform edge, so
+    the handshake has to carry the platform hostname as its SNI or the edge
+    answers with the wrong certificate, and the Host header has to carry it too
+    or the edge does not know which service to route to. Both are this service's
+    own *.up.railway.app domain.
+    """
     return {
         "remark": HOST_REMARK,
         "address": [host],
@@ -416,9 +441,15 @@ def host_body(host: str) -> dict:
         "inbound_tag": INBOUND_TAG,
         "path": TUNNEL_PATH,
         "security": "tls",
+        # Without these two the generated config has no SNI and no Host header.
+        "sni": [host],
+        "host": [host],
         "priority": 1,
         "is_disabled": False,
         "random_user_agent": False,
+        # Kept False on purpose: it copies the SNI over the Host header at
+        # render time, which would hide the day the two need to differ (a CDN
+        # in front, for instance). Set explicitly above instead.
         "use_sni_as_host": False,
     }
 
@@ -440,10 +471,23 @@ def ensure_host(token) -> int | None:
             )
             if not ours:
                 continue
-            if h.get("remark") == HOST_REMARK and h.get("inbound_tag") == INBOUND_TAG:
-                log(f"host already present (id {h['id']}) -> {host}")
+            # Matching names is not enough to call it done. An install from
+            # before sni and host were filled in has the right remark and the
+            # right tag and still hands out a config with no SNI, so the check
+            # has to look at those two as well or the fix never reaches anyone
+            # who already deployed.
+            sni = h.get("sni") or []
+            hst = h.get("host") or []
+            complete = (
+                h.get("remark") == HOST_REMARK
+                and h.get("inbound_tag") == INBOUND_TAG
+                and host in sni
+                and host in hst
+            )
+            if complete:
+                log(f"host already present (id {h['id']}) -> {host}, sni + host set")
                 return h["id"]
-            log(f"host {h['id']} has the old naming -- updating in place")
+            log(f"host {h['id']} has old naming or a missing sni/host -- updating in place")
             code, res = call(f"/api/host/{h['id']}", "PUT", host_body(host), token=token)
             if code in (200, 201):
                 log(f"host updated (id {h['id']}) -> {host}")
