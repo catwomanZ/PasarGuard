@@ -236,8 +236,6 @@ img,svg{max-width:100%}
 .q6{background:linear-gradient(135deg,#0d9488,#0891b2)}
 .q7{background:linear-gradient(135deg,#475569,#334155)}
 
-/* ---------- guide ---------- */
-.acc{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:8px;
   background:rgba(255,255,255,.022)}
 .acc:last-child{margin-bottom:0}
 .acc summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px;font-size:13px;font-weight:650}
@@ -315,7 +313,6 @@ img,svg{max-width:100%}
   .apps{grid-template-columns:repeat(6,1fr)}
   .app{padding:10px 4px}
   .shell{grid-template-columns:1fr 1fr;gap:18px;padding-top:8px}
-  .col.wide{grid-column:1/-1;grid-template-columns:1fr 1fr;gap:18px}
   .cta{display:none}
   .hero{padding:18px}
   .hrow .nm b{font-size:22px}
@@ -619,90 +616,35 @@ img,svg{max-width:100%}
       </div>
     </section>
     {% endif %}
-  </div>
+      {# ---------- where to find us ---------- #}
+      <div class="col" style="gap:12px">
+        <a class="tgcard" href="{{ CHANNEL }}" target="_blank" rel="noopener">
+          <span class="q">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19c-.2 1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13.1l-4.8-1.5c-1-.3-1-1 .2-1.5l18.8-7.2c.9-.3 1.6.2 1.5 1.4Z"/></svg>
+          </span>
+          <span class="tt">
+            <span class="t1">کانال تلگرام {{ BRAND }}</span>
+            <span class="t2">آپدیت‌ها، آموزش‌ها و کانفیگ‌های تازه</span>
+          </span>
+          <span class="ar">‹</span>
+        </a>
 
-  <div class="col wide">
+        {% if SUPPORT %}
+        <a class="suprow" href="{{ SUPPORT }}" target="_blank" rel="noopener">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-9A8.4 8.4 0 1 1 21 11.5Z"/></svg></span>
+          <span class="tt">
+            <span class="t1">پشتیبانی مستقیم</span>
+            <span class="t2">سوالی داری؟ پیام بده</span>
+          </span>
+          <span class="ar">‹</span>
+        </a>
+        {% endif %}
 
-    {# ---------- guide ---------- #}
-    <section class="card">
-      <div class="sh">
-        <span class="ico" style="color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v13a1.7 1.7 0 0 0-1.7-1.7H4V5.5Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v13a1.7 1.7 0 0 1 1.7-1.7H20V5.5Z"/></svg></span>
-        <h2>آموزش اتصال</h2>
+        <div class="foot">
+          <span class="c">{% include "subscription/cat.svg" %}&nbsp;قدرت‌گرفته از <b>{{ BOLD }}</b></span><br>
+          این صفحه فقط برای تو ساخته شده — لینکش را به کسی نده.
+        </div>
       </div>
-
-      <details class="acc" open>
-        <summary><span class="idx">۱</span> از کجا شروع کنم؟
-          <svg class="cv" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-        <div class="body">
-          از بخش <b>اتصال با یک لمس</b>، اپ پیشنهادی را لمس کن؛ اشتراک خودش اضافه می‌شود. اگر اپ از قبل روی گوشی داری،
-          با دکمه پایین همین صفحه هم می‌شود.
-        </div>
-      </details>
-
-      <details class="acc">
-        <summary><span class="idx">۲</span> دستی اضافه کنم، چطور؟
-          <svg class="cv" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-        <div class="body">
-          <ol>
-            <li>روی <b>کپی</b> کنار کانفیگ بزن.</li>
-            <li>اپ را باز کن و «افزودن از کلیپ‌بورد» را بزن.</li>
-            <li>ذخیره کن و به سرور وصل شو.</li>
-          </ol>
-        </div>
-      </details>
-
-      <details class="acc">
-        <summary><span class="idx">۳</span> پینگ قرمز است ولی وصل می‌شود؟
-          <svg class="cv" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-        <div class="body">
-          عدد پینگ فاصله‌ی <b>گوشی تو تا سرور</b> است. روی اینترنت موبایل یا وقتی فیلترشکن دیگری روشن است بالا می‌رود،
-          ولی اتصال می‌تواند سالم باشد. برای عدد دقیق‌تر، اول بقیه را خاموش کن.
-        </div>
-      </details>
-
-      <details class="acc">
-        <summary><span class="idx">۴</span> وصل نمی‌شود، چه کار کنم؟
-          <svg class="cv" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-        <div class="body">
-          <ol>
-            <li>وضعیت اشتراک باید <b>فعال</b> باشد و حجم باقی مانده باشد.</li>
-            <li>کانفیگ را تازه کپی کن — کانفیگ قدیمی ممکن است عوض شده باشد.</li>
-            <li>اپ را کامل ببند و دوباره باز کن.</li>
-            <li>اگر ماند، در تلگرام به پشتیبانی پیام بده.</li>
-          </ol>
-        </div>
-      </details>
-    </section>
-
-    {# ---------- where to find us ---------- #}
-    <div class="col" style="gap:12px">
-      <a class="tgcard" href="{{ CHANNEL }}" target="_blank" rel="noopener">
-        <span class="q">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19c-.2 1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13.1l-4.8-1.5c-1-.3-1-1 .2-1.5l18.8-7.2c.9-.3 1.6.2 1.5 1.4Z"/></svg>
-        </span>
-        <span class="tt">
-          <span class="t1">کانال تلگرام {{ BRAND }}</span>
-          <span class="t2">آپدیت‌ها، آموزش‌ها و کانفیگ‌های تازه</span>
-        </span>
-        <span class="ar">‹</span>
-      </a>
-
-      {% if SUPPORT %}
-      <a class="suprow" href="{{ SUPPORT }}" target="_blank" rel="noopener">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-9A8.4 8.4 0 1 1 21 11.5Z"/></svg></span>
-        <span class="tt">
-          <span class="t1">پشتیبانی مستقیم</span>
-          <span class="t2">سوالی داری؟ پیام بده</span>
-        </span>
-        <span class="ar">‹</span>
-      </a>
-      {% endif %}
-
-      <div class="foot">
-        <span class="c">{% include "subscription/cat.svg" %}&nbsp;قدرت‌گرفته از <b>{{ BOLD }}</b></span><br>
-        این صفحه فقط برای تو ساخته شده — لینکش را به کسی نده.
-      </div>
-    </div>
   </div>
 </main>
 
