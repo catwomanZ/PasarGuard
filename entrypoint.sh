@@ -15,7 +15,7 @@ TUNNEL_PATH="${TUNNEL_PATH:-/ws}"
 BRAND="${BRAND:-CATWOMAN}"
 
 export TZ="${TZ:-Asia/Tehran}"
-mkdir -p "$DATA_DIR" "$DATA_DIR/templates" "$DATA_DIR/node" /run/nginx
+mkdir -p "$DATA_DIR" "$DATA_DIR/templates/subscription" "$DATA_DIR/node" /run/nginx
 
 log() { printf '[entrypoint] %s\n' "$*"; }
 die() { printf '[entrypoint] FATAL: %s\n' "$*" >&2; exit 1; }
@@ -25,7 +25,11 @@ die() { printf '[entrypoint] FATAL: %s\n' "$*" >&2; exit 1; }
 # --------------------------------------------------------------------------
 # PasarGuard reads these from disk and prefers them over its own. Copied on
 # every boot so an image update also refreshes the page.
-cp -f /opt/templates/subscription/* "$DATA_DIR/templates/subscription/" 2>/dev/null || true
+if cp -f /opt/templates/subscription/* "$DATA_DIR/templates/subscription/" 2>/dev/null; then
+  log "subscription page template installed"
+else
+  log "WARNING: could not install the subscription page template"
+fi
 
 export CUSTOM_TEMPLATES_DIRECTORY="$DATA_DIR/templates/"
 export SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"
@@ -60,6 +64,20 @@ if [ ! -s "$DATA_DIR/node/api_key" ]; then
   log "generated the node API key"
 fi
 chmod 600 "$DATA_DIR/node/api_key"
+
+# --------------------------------------------------------------------------
+# database migrations
+# --------------------------------------------------------------------------
+# The stock image did this in its own start.sh, which this entrypoint replaces.
+# On a brand new volume there is no schema at all without it -- the panel comes
+# up and then fails on every query, so this has to run first and has to be fatal
+# if it fails.
+log "running database migrations"
+if ! (cd /code && python -m alembic upgrade head) >/tmp/alembic.log 2>&1; then
+  tail -25 /tmp/alembic.log
+  die "database migrations failed"
+fi
+log "database schema is up to date"
 
 # --------------------------------------------------------------------------
 # start the panel
