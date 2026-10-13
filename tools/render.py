@@ -69,6 +69,7 @@ def build(state):
     links = [
         "vless://3063a663-51de-45ca-afa9-909256a34320@catwoman-panel.up.railway.app:443"
         "?encryption=none&security=tls&type=ws&headerType=none&path=%2Fws"
+        "&host=catwoman-panel.up.railway.app&sni=catwoman-panel.up.railway.app"
         "#%F0%9D%97%96%F0%9D%97%94%F0%9D%97%A7%F0%9D%97%AA%F0%9D%97%A2%F0%9D%97%A0%F0%9D%97%94%F0%9D%97%A1%20%E2%80%A2%20zahra"
     ]
     return {

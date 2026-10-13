@@ -140,7 +140,28 @@ nginx -t -c /tmp/nginx.conf || die "the rendered nginx config is invalid"
 log "starting nginx on :$HTTP_PORT"
 nginx -c /tmp/nginx.conf -g 'daemon off;' &
 
-log "ready -- panel and node are running"
+  log "ready -- panel and node are running"
+
+  # --------------------------------------------------------------------------
+  # boot self test -- the container proves its own tunnel, in the deploy log
+  # --------------------------------------------------------------------------
+  # Runs in the background so it can never delay a health check. It makes a
+  # throwaway user, pulls the config the panel would hand to a phone, drives
+  # that config through nginx into the xray inbound with no other way out, and
+  # deletes the user again. Every line it prints is prefixed [selftest].
+  #
+  # This exists because a reachable panel and a tidy looking link are not proof
+  # that a config connects. Only traffic coming back is, and this is where that
+  # gets written down -- in the deploy log, on every boot, without anyone
+  # having to import the link into a phone and guess.
+  PANEL_URL="http://127.0.0.1:$PANEL_PORT" \
+  HTTP_PORT="$HTTP_PORT" \
+  PUBLIC_HOST="${PUBLIC_HOST:-${RAILWAY_PUBLIC_DOMAIN:-}}" \
+  TUNNEL_PATH="$TUNNEL_PATH" \
+  ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
+  ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}" \
+  XRAY_EXECUTABLE_PATH=/usr/local/bin/xray \
+  python /opt/selftest.py &
 
 # --------------------------------------------------------------------------
 # supervise: if the panel dies, the container should die so Railway restarts it

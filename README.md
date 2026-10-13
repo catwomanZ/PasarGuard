@@ -101,6 +101,7 @@ TZ             = Asia/Tehran
 | `Dockerfile` | تصویر پنل + nginx + Xray + نود |
 | `entrypoint.sh` | ترتیب روشن شدن همه چیز |
 | `bootstrap.py` | ساخت ادمین، هسته، نود، هاست، گروه و برند |
+| `selftest.py` | تست خودکار تونل در هر بالا آمدن، نتیجه در لاگ Railway |
 | `nginx.conf.template` | مسیر `/ws` برای تونل و بقیه برای پنل |
 | `templates/subscription/` | صفحه‌ی اشتراک |
 

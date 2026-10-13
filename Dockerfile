@@ -52,6 +52,7 @@ RUN set -eux; \
 COPY nginx.conf.template /opt/nginx.conf.template
 COPY entrypoint.sh       /opt/entrypoint.sh
 COPY bootstrap.py        /opt/bootstrap.py
+COPY selftest.py         /opt/selftest.py
 COPY templates/          /opt/templates/
 RUN chmod +x /opt/entrypoint.sh
 
