@@ -37,7 +37,23 @@ APP_DIR = os.environ.get("APP_DIR", "/code")
 PYTHON = os.environ.get("PYTHON", "/code/.venv/bin/python")
 DATA = Path(os.environ.get("DATA_DIR", "/var/lib/pasarguard"))
 
+# ---------------------------------------------------------------------------
+# how the brand is written
+# ---------------------------------------------------------------------------
+# "CATWOMAN" in Unicode mathematical sans-serif bold -- 𝗖𝗔𝗧𝗪𝗢𝗠𝗔𝗡. U+1D5D4 is
+# a bold capital A and the capitals run consecutively from there, so this is a
+# shift rather than a lookup table. Computed instead of pasted so the file stays
+# readable and the codepoints are not a mystery to whoever opens it next.
+def bold(text: str) -> str:
+    return "".join(
+        chr(0x1D5D4 + ord(c) - 65) if "A" <= c <= "Z" else c for c in text
+    )
+
+
+# BRAND stays the plain name so there is one obvious place to change it; the
+# bold form is derived from it and is what the panel actually shows.
 BRAND = os.environ.get("BRAND", "CATWOMAN")
+DISPLAY_BRAND = os.environ.get("DISPLAY_BRAND", "") or bold(BRAND)
 SUPPORT_URL = os.environ.get("SUB_SUPPORT_URL", "https://t.me/Catwoman_ZaHra")
 ANNOUNCE = os.environ.get("SUB_ANNOUNCE", "این پنل توسط Catwoman ساخته شده")
 
@@ -49,13 +65,25 @@ DB_FILE = DATA / "db.sqlite3"
 # The password must contain at least two uppercase letters -- enforced by the
 # panel, and the exact error is "Password must contain at least 2 uppercase letters".
 
-INBOUND_TAG = os.environ.get("INBOUND_TAG", "CATWOMAN-VLESS-WS")
+INBOUND_TAG = os.environ.get("INBOUND_TAG", f"{DISPLAY_BRAND}-VLESS-WS")
 INBOUND_PORT = int(os.environ.get("INBOUND_PORT", "10085"))
 TUNNEL_PATH = os.environ.get("TUNNEL_PATH", "/ws")
 CORE_NAME = os.environ.get("CORE_NAME", "catwoman-core")
 NODE_NAME = os.environ.get("NODE_NAME", "catwoman-node")
-GROUP_NAME = os.environ.get("GROUP_NAME", "CATWOMAN")
-HOST_REMARK = os.environ.get("INBOUND_REMARK", BRAND)
+GROUP_NAME = os.environ.get("GROUP_NAME", DISPLAY_BRAND)
+# The host remark is a template, and the panel expands {USERNAME} per user
+# (app/subscription/share.py: remark.format_map(format_variables)). That is what
+# puts the username in the name of every config the client imports.
+HOST_REMARK = os.environ.get("INBOUND_REMARK", DISPLAY_BRAND + " \u2022 {USERNAME}")
+
+# What builds before this one wrote. The steps below rewrite an installation
+# that already carries these, in place, so a redeploy does not end up with a
+# duplicate group, a second core fighting for the same port, or a host pointing
+# at an inbound tag that no longer exists anywhere.
+LEGACY_BRAND = "CATWOMAN"
+LEGACY_INBOUND_TAG = "CATWOMAN-VLESS-WS"
+LEGACY_GROUP_NAME = "CATWOMAN"
+LEGACY_HOST_REMARK = "CATWOMAN"
 NODE_CERT = DATA / "node" / "ssl_cert.pem"
 NODE_KEY = DATA / "node" / "ssl_key.pem"
 NODE_API_KEY_FILE = DATA / "node" / "api_key"
@@ -241,17 +269,8 @@ def login() -> str | None:
 # ---------------------------------------------------------------------------
 # step 2 - the Xray core
 # ---------------------------------------------------------------------------
-def ensure_core(token) -> int | None:
-    code, res = call("/api/cores", token=token)
-    cores = unwrap(res, "cores")
-    if cores is not None:
-        for c in cores:
-            if c.get("name") == CORE_NAME:
-                log(f"core already present (id {c['id']})")
-                return c["id"]
-
-    log("creating the Xray core")
-    config = {
+def build_core_config() -> dict:
+    return {
         "log": {"loglevel": "warning"},
         "inbounds": [{
             "tag": INBOUND_TAG,
@@ -264,8 +283,38 @@ def ensure_core(token) -> int | None:
         }],
         "outbounds": [{"protocol": "freedom", "tag": "direct"}],
     }
+
+
+def ensure_core(token) -> int | None:
+    code, res = call("/api/cores", token=token)
+    cores = unwrap(res, "cores")
+    if cores is not None:
+        for c in cores:
+            if c.get("name") == CORE_NAME:
+                tags = [i.get("tag")
+                        for i in ((c.get("config") or {}).get("inbounds") or [])]
+                if INBOUND_TAG in tags:
+                    log(f"core already present (id {c['id']}), tag {INBOUND_TAG}")
+                    return c["id"]
+                # A leftover from before the rename. Rewritten here rather than
+                # replaced with a new core: two cores would each open port
+                # INBOUND_PORT and the node would fail to start, and the host
+                # below would be left pointing at a tag nothing defines.
+                log(f"core {c['id']} has the old tag {tags} -- updating in place")
+                code, res = call(
+                    f"/api/core/{c['id']}?restart_nodes=true", "PUT",
+                    {"name": CORE_NAME, "type": "xray", "config": build_core_config()},
+                    token=token)
+                if code in (200, 201):
+                    log(f"core updated, tag is now {INBOUND_TAG}")
+                    return c["id"]
+                warn(f"core update failed: HTTP {code} {res}")
+                return c["id"]
+
+    log("creating the Xray core")
     code, res = call("/api/core", "POST",
-                     {"name": CORE_NAME, "type": "xray", "config": config}, token=token)
+                     {"name": CORE_NAME, "type": "xray", "config": build_core_config()},
+                     token=token)
     if code == 201:
         log(f"core created (id {res['id']}), inbound tag {INBOUND_TAG}")
         return res["id"]
@@ -358,6 +407,22 @@ def public_host() -> str:
     return os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
 
 
+def host_body(host: str) -> dict:
+    """What a host looks like, shared by the create and the rename path."""
+    return {
+        "remark": HOST_REMARK,
+        "address": [host],
+        "port": int(os.environ.get("PUBLIC_PORT", "443")),
+        "inbound_tag": INBOUND_TAG,
+        "path": TUNNEL_PATH,
+        "security": "tls",
+        "priority": 1,
+        "is_disabled": False,
+        "random_user_agent": False,
+        "use_sni_as_host": False,
+    }
+
+
 def ensure_host(token) -> int | None:
     host = public_host()
     if not host:
@@ -369,23 +434,25 @@ def ensure_host(token) -> int | None:
     hosts = unwrap(res, "hosts")
     if hosts is not None:
         for h in hosts:
+            ours = (
+                h.get("inbound_tag") in (INBOUND_TAG, LEGACY_INBOUND_TAG)
+                and h.get("remark") in (HOST_REMARK, LEGACY_HOST_REMARK)
+            )
+            if not ours:
+                continue
             if h.get("remark") == HOST_REMARK and h.get("inbound_tag") == INBOUND_TAG:
                 log(f"host already present (id {h['id']}) -> {host}")
                 return h["id"]
+            log(f"host {h['id']} has the old naming -- updating in place")
+            code, res = call(f"/api/host/{h['id']}", "PUT", host_body(host), token=token)
+            if code in (200, 201):
+                log(f"host updated (id {h['id']}) -> {host}")
+                return h["id"]
+            warn(f"host update failed: HTTP {code} {res}")
+            return h["id"]
 
     log(f"creating the host for {host}")
-    code, res = call("/api/host/", "POST", {
-        "remark": HOST_REMARK,
-        "address": [host],
-        "port": int(os.environ.get("PUBLIC_PORT", "443")),
-        "inbound_tag": INBOUND_TAG,
-        "path": TUNNEL_PATH,
-        "security": "tls",
-        "priority": 1,
-        "is_disabled": False,
-        "random_user_agent": False,
-        "use_sni_as_host": False,
-    }, token=token)
+    code, res = call("/api/host/", "POST", host_body(host), token=token)
     if code in (200, 201):
         log(f"host created (id {res['id']})")
         return res["id"]
@@ -398,9 +465,26 @@ def ensure_group(token) -> int | None:
     groups = unwrap(res, "groups")
     if groups is not None:
         for g in groups:
-            if g.get("name") == GROUP_NAME:
+            if g.get("name") not in (GROUP_NAME, LEGACY_GROUP_NAME):
+                continue
+            if g.get("name") == GROUP_NAME and INBOUND_TAG in (g.get("inbound_tags") or []):
                 log(f"group already present (id {g['id']})")
                 return g["id"]
+            # Renamed in place rather than recreated: a user points at a group
+            # by id, so a brand new group would leave every existing user
+            # attached to nothing -- which means an empty subscription, with no
+            # error anywhere to explain it.
+            log(f"group {g['id']} has the old name -- updating in place")
+            code, res = call(f"/api/group/{g['id']}", "PUT", {
+                "name": GROUP_NAME,
+                "inbound_tags": [INBOUND_TAG],
+                "is_disabled": False,
+            }, token=token)
+            if code in (200, 201):
+                log(f"group updated (id {g['id']}) -> {GROUP_NAME}")
+                return g["id"]
+            warn(f"group update failed: HTTP {code} {res}")
+            return g["id"]
 
     log("creating the group")
     # Without a group a user is not attached to any inbound, and PasarGuard
@@ -427,7 +511,7 @@ def ensure_branding(token):
         return
     sub = settings.get("subscription") or {}
     wanted = {
-        "profile_title": BRAND,
+        "profile_title": DISPLAY_BRAND,
         "support_url": SUPPORT_URL,
         "announce": ANNOUNCE,
     }
