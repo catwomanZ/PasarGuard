@@ -343,13 +343,23 @@ def main() -> int:
             return 0
 
         started = time.time()
-        code = curl(TARGET, proxy=f"socks5h://127.0.0.1:{SOCKS_PORT}", timeout=30)
+        code = "000"
+        # The node picks the new user up over its own channel, and nginx came up
+        # seconds ago. Either can be a beat behind the panel's API, and a single
+        # early failure would be reported as a dead tunnel. So: try a few times
+        # before believing it, and say how many tries it took.
+        for attempt in range(1, 5):
+            code = curl(TARGET, proxy=f"socks5h://127.0.0.1:{SOCKS_PORT}", timeout=30)
+            if code in OK_CODES:
+                break
+            if attempt < 4:
+                time.sleep(4)
         took = time.time() - started
         if code in OK_CODES:
-            log(f"TUNNEL OK -- fetched {TARGET} through {TUNNEL_PATH} in {took:.1f}s")
+            log(f"TUNNEL OK -- fetched {TARGET} through {TUNNEL_PATH} in {took:.1f}s (try {attempt})")
             log("the panel's config carries traffic; anything left is the edge or the client")
         else:
-            log(f"TUNNEL FAILED -- curl said {code} after {took:.1f}s")
+            log(f"TUNNEL FAILED -- curl said {code} after {took:.1f}s and {attempt} tries")
             log(f"  the client reached 127.0.0.1:{HTTP_PORT}{TUNNEL_PATH} and got nothing back")
             log("  look at nginx /ws routing and the xray inbound before blaming the phone")
         return 0
