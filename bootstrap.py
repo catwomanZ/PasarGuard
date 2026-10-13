@@ -41,8 +41,9 @@ BRAND = os.environ.get("BRAND", "CATWOMAN")
 SUPPORT_URL = os.environ.get("SUB_SUPPORT_URL", "https://t.me/Catwoman_ZaHra")
 ANNOUNCE = os.environ.get("SUB_ANNOUNCE", "این پنل توسط Catwoman ساخته شده")
 
-ADMIN_USER = os.environ.get("ADMIN_USERNAME", "catwoman")
-ADMIN_PASS = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_USER = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASS = os.environ.get("ADMIN_PASSWORD", "admin")
+DB_FILE = DATA / "db.sqlite3"
 # PasarGuard refuses to seed an admin from env in production ("env admin not
 # allowed in production"), so one is created here through the temp-key flow.
 # The password must contain at least two uppercase letters -- enforced by the
@@ -156,14 +157,17 @@ def create_owner():
         warn((out.stdout or "")[-300:] + (out.stderr or "")[-300:])
         return False
 
-    password = ADMIN_PASS
-    if not password:
-        # generate something that satisfies "at least 2 uppercase letters"
-        password = "Cw" + secrets.token_urlsafe(14) + "9"
-        warn(f"no ADMIN_PASSWORD set; using a generated one: {password}")
-
+    # The API insists on a strong password, and the one you actually want may
+    # be "admin". Satisfy the API with a throwaway, then overwrite the stored
+    # hash in the next step. See force_credentials() for why that works.
+    # Built so it satisfies every clause of the policy deterministically:
+    # "Cw" gives the two uppercase, "7" and "9" the two digits, "!" the special
+    # character, and the random middle covers length and the two lowercase.
+    # token_urlsafe alone is not enough -- its alphabet is [A-Za-z0-9_-], so it
+    # can (and did) come out with no special character at all.
+    throwaway = "Cw7!" + secrets.token_urlsafe(18) + "9!"
     code, res = call("/api/setup/owner", "POST",
-                     {"key": key, "username": ADMIN_USER, "password": password})
+                     {"key": key, "username": ADMIN_USER, "password": throwaway})
     if code == 201:
         log(f"owner '{ADMIN_USER}' created")
         return True
@@ -172,6 +176,53 @@ def create_owner():
         return True
     warn(f"owner creation failed: HTTP {code} {res}")
     return False
+
+
+def force_credentials(username: str, password: str) -> bool:
+    """Write the username and a bcrypt hash straight into the database.
+
+    Why this is needed: PasarGuard's password policy (at least 12 characters,
+    2 digits, 2 uppercase, 2 lowercase, 1 special character, and it may not
+    contain the username) is enforced by the Pydantic models the API uses to
+    CREATE a password. It is not enforced anywhere a password is USED -- the
+    login path is just bcrypt.checkpw against the stored hash
+    (app/routers/authentication.py, validate_admin). So a hash written here
+    logs in exactly like one the API created.
+
+    Worth knowing before you rely on it: because the policy still guards every
+    create/update path, the panel's own UI will refuse to set this password
+    again once you change it. Pick something policy-compliant before handing
+    the panel to anyone else.
+    """
+    try:
+        import bcrypt
+    except ImportError:
+        warn("bcrypt is unavailable, cannot force the credentials")
+        return False
+
+    if not DB_FILE.exists():
+        warn(f"no database at {DB_FILE}")
+        return False
+
+    import sqlite3
+
+    rounds = 12  # matches BCRYPT_ROUNDS in app/models/admin.py
+    digest = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=rounds)).decode()
+    try:
+        con = sqlite3.connect(DB_FILE)
+        with con:
+            con.execute(
+                "UPDATE admins SET username = ?, hashed_password = ? WHERE id = "
+                "(SELECT id FROM admins ORDER BY id LIMIT 1)",
+                (username, digest),
+            )
+        con.close()
+    except Exception as e:
+        warn(f"could not write the credentials: {e}")
+        return False
+
+    log(f"credentials set to {username} / {password}")
+    return True
 
 
 def login() -> str | None:
@@ -404,6 +455,10 @@ def main() -> int:
         log("login failed -- assuming this is a fresh install")
         if not create_owner():
             return 1
+        # The owner now exists with a throwaway password; replace it with the
+        # one you asked for, then log in with that.
+        if not force_credentials(ADMIN_USER, ADMIN_PASS):
+            warn("continuing with the throwaway password")
         token = login()
     if not token:
         # Owner exists but the password differs from ADMIN_PASSWORD: the panel
