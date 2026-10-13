@@ -1,0 +1,624 @@
+{#
+  CATWOMAN — subscription page for PasarGuard
+  ============================================================================
+  Server-rendered by Jinja2, so it works with JavaScript switched off.
+  Everything is inline: no font CDN, no icon CDN, no external request at all.
+  That matters on a phone on a filtered connection -- an outside asset is one
+  more thing that can fail to load and leave the page half-drawn.
+
+  The only script is the QR library (included from qrcode.js) and ~80 lines
+  of glue for copy-to-clipboard and the QR sheet.
+
+  What the panel hands us (see app/operation/subscription.py):
+    user               username / status / used_traffic / data_limit / expire
+    links              list of "vless://..." strings
+    announce           the announcement text, already formatted
+    announce_url       where the announcement should link
+    apps               import buttons, each {name, icon_url, import_url, ...}
+#}
+
+{# ---------------------------------------------------------------------------
+   Your brand, in one place. PasarGuard hands the template user / links /
+   announce / announce_url / apps. It does not hand over the panel's support
+   link, so that is written here instead. Change these three lines and the
+   whole page follows.
+   --------------------------------------------------------------------------- #}
+{% set BRAND   = "CATWOMAN" %}
+{% set TAGLINE = "اشتراک اختصاصی" %}
+{% set SUPPORT = "https://t.me/Catwoman_ZaHra" %}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#07060f">
+<title>{{ user.username }} · {{ BRAND }}</title>
+<style>
+/* ==========================================================================
+   1. base
+   ========================================================================== */
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --cw-ink:#07060f;
+  --cw-c1:#22d3ee;
+  --cw-c2:#a855f7;
+  --cw-c3:#f472b6;
+  --cw-text:#f5f3ff;
+  --cw-dim:#a78bfa;
+  --cw-mute:rgba(196,181,253,.55);
+  --cw-line:rgba(168,85,247,.20);
+  --cw-line-2:rgba(168,85,247,.34);
+  --cw-card:rgba(23,16,42,.62);
+  --cw-tile:rgba(168,85,247,.075);
+  --cw-tile-2:rgba(168,85,247,.16);
+  --cw-ok:#34d399;
+  --cw-warn:#fbbf24;
+  --cw-bad:#fb7185;
+  --cw-r:20px;
+  --cw-ease:cubic-bezier(.22,.8,.28,1);
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  min-height:100dvh;
+  padding:max(16px,env(safe-area-inset-top)) 14px calc(28px + env(safe-area-inset-bottom));
+  background:var(--cw-ink);
+  color:var(--cw-text);
+  font-family:"Vazirmatn","Segoe UI",Tahoma,system-ui,-apple-system,sans-serif;
+  font-size:15px;
+  line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* the drifting aurora -- two blurred blobs, no filter:blur (cheaper on phones) */
+.aur{position:fixed;inset:-15%;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(40% 32% at 78% 6%,rgba(168,85,247,.40),transparent 68%),
+    radial-gradient(34% 28% at 12% 2%,rgba(34,211,238,.26),transparent 68%),
+    radial-gradient(46% 40% at 50% 104%,rgba(244,114,182,.22),transparent 70%),
+    radial-gradient(130% 95% at 20% -12%,#2b1352 0%,#120c22 46%,#06060e 100%);
+}
+.grid-fx{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(rgba(168,85,247,.055) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(168,85,247,.055) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(at 50% 12%,#000 18%,transparent 70%);
+          mask-image:radial-gradient(at 50% 12%,#000 18%,transparent 70%);
+}
+.wrap{max-width:470px;margin:0 auto;display:flex;flex-direction:column;gap:13px}
+
+/* ==========================================================================
+   2. card shell -- one card, with a thin bar of brand light along the top
+   ========================================================================== */
+.card{
+  position:relative;
+  border-radius:var(--cw-r);
+  border:1px solid var(--cw-line);
+  background:var(--cw-card);
+  padding:18px;
+  overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.5),0 26px 66px -30px rgba(109,40,217,.85);
+}
+.card::before{
+  content:"";position:absolute;top:0;left:12%;right:12%;height:1.5px;border-radius:0 0 3px 3px;
+  background:linear-gradient(90deg,transparent,var(--cw-c2),var(--cw-c1) 52%,var(--cw-c3),transparent);
+  opacity:.85;
+}
+.sec{padding:16px 0;border-top:1px solid var(--cw-line)}
+.sec:first-of-type{border-top:0;padding-top:0}
+.sec:last-child{padding-bottom:0}
+
+/* ==========================================================================
+   3. header
+   ========================================================================== */
+.head{display:flex;align-items:center;gap:12px;padding-bottom:15px;border-bottom:1px solid var(--cw-line)}
+.mark{
+  width:46px;height:46px;flex:0 0 46px;border-radius:14px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--cw-c1) 0%,var(--cw-c2) 52%,var(--cw-c3) 100%);
+  color:#fff;
+  box-shadow:0 12px 30px -12px rgba(168,85,247,.9),inset 0 1px 0 rgba(255,255,255,.35);
+}
+.mark svg{width:25px;height:25px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.who{flex:1;min-width:0}
+.brand{
+  font-size:19px;font-weight:800;letter-spacing:.09em;line-height:1.25;
+  background:linear-gradient(100deg,var(--cw-c1),var(--cw-c2) 40%,var(--cw-c3) 70%,var(--cw-c1));
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:var(--cw-dim);
+  animation:cw-shine 12s linear infinite;
+}
+@keyframes cw-shine{from{background-position:0 0}to{background-position:-220% 0}}
+.who .sub{font-size:12px;color:var(--cw-mute);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* status pill */
+.pill{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+  font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:999px;
+  border:1px solid var(--cw-line-2);background:var(--cw-tile-2);
+}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block;box-shadow:0 0 8px currentColor}
+.pill.s-active{color:var(--cw-ok);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.12)}
+.pill.s-expired,.pill.s-disabled{color:var(--cw-bad);border-color:rgba(251,113,133,.4);background:rgba(251,113,133,.12)}
+.pill.s-limited{color:var(--cw-warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.12)}
+.pill.s-on_hold{color:var(--cw-c1);border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.12)}
+
+/* ==========================================================================
+   4. announcement
+   ========================================================================== */
+.ann{
+  display:flex;gap:10px;align-items:flex-start;
+  padding:12px 14px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(168,85,247,.20),rgba(34,211,238,.11));
+  border:1px solid var(--cw-line-2);
+  font-size:13.5px;line-height:1.8;color:#ead9ff;
+}
+.ann .dot{flex:0 0 auto;width:18px;height:18px;border-radius:50%;margin-top:3px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--cw-c2),var(--cw-c1));color:#0b0616;font-size:11px;font-weight:900}
+.ann a{color:var(--cw-c1)}
+
+/* ==========================================================================
+   5. hero: the usage dial
+   ========================================================================== */
+.hero{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:20px}
+.dial{position:relative;width:176px;height:176px}
+.dial svg{width:100%;height:100%;transform:rotate(-90deg)}
+.dial .trk{fill:none;stroke:rgba(255,255,255,.09);stroke-width:11}
+.dial .arc{fill:none;stroke:url(#cwg);stroke-width:11;stroke-linecap:round;
+  filter:drop-shadow(0 0 9px rgba(168,85,247,.75));
+  transition:stroke-dashoffset 1s var(--cw-ease)}
+.dial .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.dial .pct{font-size:33px;font-weight:800;letter-spacing:-.02em;line-height:1;
+  background:linear-gradient(160deg,#fff,var(--cw-dim));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#fff}
+.dial .cap{font-size:11.5px;color:var(--cw-mute)}
+.dial .trk.danger,.dial .arc.danger{stroke:var(--cw-bad)}
+.hero .verdict{font-size:13px;color:var(--cw-mute);margin-top:6px}
+.hero .verdict b{color:var(--cw-c1);font-weight:700}
+
+/* ==========================================================================
+   6. the four tiles
+   ========================================================================== */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;width:100%;margin-top:18px}
+.tile{
+  border:1px solid var(--cw-line);background:var(--cw-tile);
+  border-radius:14px;padding:11px 13px;min-width:0;
+  transition:border-color .16s var(--cw-ease),background .16s var(--cw-ease);
+}
+.tile:hover{border-color:var(--cw-line-2);background:var(--cw-tile-2)}
+.tile .k{font-size:11.5px;color:var(--cw-mute);display:flex;align-items:center;gap:5px}
+.tile .v{font-size:15px;font-weight:700;margin-top:3px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.tile .v em{font-style:normal;font-size:11.5px;color:var(--cw-mute);font-weight:500}
+.ico{width:13px;height:13px;display:block;flex:0 0 13px;opacity:.85}
+
+/* ==========================================================================
+   7. config rows
+   ========================================================================== */
+.sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+.sh h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.03em;color:var(--cw-dim)}
+.sh .n{font-size:11.5px;color:var(--cw-mute);border:1px solid var(--cw-line-2);background:var(--cw-tile-2);
+  border-radius:999px;padding:2px 9px;font-weight:700}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{
+  display:flex;align-items:center;gap:9px;min-width:0;
+  padding:10px 12px;border-radius:14px;
+  border:1px solid var(--cw-line);background:var(--cw-tile);
+  transition:border-color .16s var(--cw-ease),background .16s var(--cw-ease),transform .16s var(--cw-ease);
+}
+.row:hover{border-color:var(--cw-line-2);background:var(--cw-tile-2);transform:translateY(-1px)}
+.tag{
+  flex:0 0 auto;font-size:10.5px;font-weight:800;letter-spacing:.04em;
+  padding:3px 9px;border-radius:8px;text-transform:uppercase;
+  background:linear-gradient(135deg,rgba(168,85,247,.34),rgba(34,211,238,.22));
+  border:1px solid var(--cw-line-2);color:#e9d5ff;
+}
+.tag.vless{color:#c4b5fd} .tag.vmess{color:#a5b4fc} .tag.trojan{color:#fda4af}
+.tag.ss,.tag.shadowsocks{color:#6ee7b7} .tag.wireguard{color:#fcd34d} .tag.hysteria2{color:#f0abfc}
+.row .url{flex:1;min-width:0;font-size:11.5px;color:var(--cw-mute);
+  direction:ltr;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.acts{flex:0 0 auto;display:flex;gap:5px}
+.ib{
+  width:34px;height:34px;padding:0;display:grid;place-items:center;
+  border-radius:11px;border:1px solid var(--cw-line-2);background:var(--cw-tile-2);
+  color:var(--cw-dim);cursor:pointer;transition:all .16s var(--cw-ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.ib:hover{color:#fff;background:rgba(168,85,247,.3);border-color:var(--cw-dim);transform:translateY(-1px)}
+.ib:active{transform:translateY(0)}
+.ib svg{width:16px;height:16px;display:block}
+.ib.done{color:var(--cw-ok);border-color:rgba(52,211,153,.55);background:rgba(52,211,153,.14)}
+.ib.qrbtn svg{width:16px;height:16px}
+
+/* ==========================================================================
+   8. app import buttons
+   ========================================================================== */
+.apps{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.app{
+  display:flex;align-items:center;gap:9px;min-width:0;text-decoration:none;color:inherit;
+  padding:10px 12px;border-radius:14px;border:1px solid var(--cw-line);background:var(--cw-tile);
+  transition:border-color .16s var(--cw-ease),background .16s var(--cw-ease),transform .16s var(--cw-ease);
+}
+.app:hover{border-color:var(--cw-line-2);background:var(--cw-tile-2);transform:translateY(-1px)}
+.app img{width:26px;height:26px;border-radius:8px;flex:0 0 26px;object-fit:cover;background:rgba(255,255,255,.06)}
+.app .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.app .go{margin-inline-start:auto;color:var(--cw-mute);font-size:15px;line-height:1}
+
+.empty{padding:16px;text-align:center;font-size:13px;color:var(--cw-mute);
+  border:1px dashed var(--cw-line-2);border-radius:14px}
+
+/* ==========================================================================
+   9. footer
+   ========================================================================== */
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-top:14px;border-top:1px solid var(--cw-line);font-size:12px;color:var(--cw-mute)}
+.foot a{display:inline-flex;align-items:center;gap:6px;color:var(--cw-dim);text-decoration:none;font-weight:600}
+.foot a:hover{color:#e9d5ff}
+.foot .by{display:inline-flex;align-items:center;gap:6px}
+.foot .by b{color:var(--cw-dim);font-weight:700;letter-spacing:.06em}
+.foot .by svg{width:13px;height:13px;display:block;color:var(--cw-dim);flex:0 0 13px}
+
+/* ==========================================================================
+   10. QR sheet
+   ========================================================================== */
+.sheet{position:fixed;inset:0;z-index:60;display:none;place-items:center;
+  background:rgba(6,4,14,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:18px}
+.sheet.open{display:grid}
+.sheet .box{width:100%;max-width:340px;border-radius:22px;border:1px solid var(--cw-line-2);
+  background:#140d26;padding:18px;box-shadow:0 30px 80px -20px #000;animation:pop .28s var(--cw-ease)}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}}
+.sheet h3{margin:0 0 2px;font-size:15px;font-weight:700}
+.sheet .full,.sheet .btns,.sheet .hint,.sheet .btn{box-sizing:border-box}
+.sheet .hint{margin:0 0 14px;font-size:12px;color:var(--cw-mute)}
+.sheet .qr{background:#fff;border-radius:14px;padding:11px;width:fit-content;margin:0 auto 14px;line-height:0}
+.sheet .qr svg,.sheet .qr canvas,.sheet .qr img{width:222px;height:222px;display:block}
+.sheet .full{font-size:11px;direction:ltr;text-align:left;color:var(--cw-mute);word-break:break-all;
+  font-family:ui-monospace,monospace;background:var(--cw-tile);border:1px solid var(--cw-line);
+  border-radius:11px;padding:9px 11px;margin-bottom:13px;max-height:78px;overflow:auto}
+.sheet .btns{display:grid;grid-template-columns:1fr auto;gap:8px}
+.btn{font:inherit;font-weight:700;font-size:13px;padding:11px 14px;border-radius:13px;cursor:pointer;
+  border:1px solid var(--cw-line-2);background:var(--cw-tile-2);color:var(--cw-text);
+  transition:all .16s var(--cw-ease);-webkit-tap-highlight-color:transparent}
+.btn:hover{background:rgba(168,85,247,.3)}
+.btn.go{background:linear-gradient(135deg,var(--cw-c2),var(--cw-c1));border-color:transparent;color:#0b0616}
+.btn.go:hover{filter:brightness(1.08)}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translate(-50%,26px);
+  z-index:80;opacity:0;pointer-events:none;transition:all .26s var(--cw-ease);
+  padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;
+  background:linear-gradient(135deg,var(--cw-c2),var(--cw-c1));color:#0b0616;box-shadow:0 14px 34px -12px #000}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:380px){
+  .tiles{grid-template-columns:1fr}
+  .apps{grid-template-columns:1fr}
+  .dial{width:158px;height:158px}
+}
+@media (prefers-reduced-motion:reduce){
+  .brand{animation:none}
+  .dial .arc{transition:none}
+  .sheet .box{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="aur"></div>
+<div class="grid-fx"></div>
+
+<main class="wrap">
+  <section class="card">
+
+    {# ---------- header ---------- #}
+    <div class="head">
+      <div class="mark">{% include "subscription/cat.svg" %}</div>
+      <div class="who">
+        <div class="brand">{{ BRAND }}</div>
+        <div class="sub">{{ TAGLINE }} · {{ user.username }}</div>
+      </div>
+      {% set st = user.status.value %}
+      <span class="pill s-{{ st }}">
+        <i></i>
+        {%- if st == 'active' %}فعال
+        {%- elif st == 'expired' %}منقضی
+        {%- elif st == 'limited' %}اتمام حجم
+        {%- elif st == 'on_hold' %}شروع نشده
+        {%- elif st == 'disabled' %}غیرفعال
+        {%- else %}{{ st }}{% endif -%}
+      </span>
+    </div>
+
+    {# ---------- announcement ---------- #}
+    {% if announce %}
+    <div class="sec">
+      <div class="ann">
+        <span class="dot">!</span>
+        <div>
+          {%- if announce_url %}<a href="{{ announce_url }}" target="_blank" rel="noopener">{{ announce | replace('\n','<br>') }}</a>
+          {%- else %}{{ announce | replace('\n','<br>') }}{% endif -%}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ---------- hero ---------- #}
+    {# work out the numbers once, here, so the markup below stays readable #}
+    {% set used = user.used_traffic or 0 %}
+    {% set limit = user.data_limit or 0 %}
+    {% set unlimited = (limit == 0) %}
+    {% set pct = 0 if unlimited else ([100, (used * 100 / limit)] | min) %}
+    {% set deg = pct * 3.6 %}
+    {% set danger = (not unlimited and pct >= 85) or user.status.value == 'limited' %}
+
+    <div class="sec hero">
+      <div class="dial">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <linearGradient id="cwg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#22d3ee"/>
+              <stop offset=".52" stop-color="#a855f7"/>
+              <stop offset="1" stop-color="#f472b6"/>
+            </linearGradient>
+          </defs>
+          <circle class="trk{% if danger %} danger{% endif %}" cx="60" cy="60" r="52"/>
+          <circle class="arc{% if danger %} danger{% endif %}" id="arc" cx="60" cy="60" r="52"
+                  stroke-dasharray="326.7" stroke-dashoffset="326.7"
+                  data-pct="{{ pct | round(1) }}"/>
+        </svg>
+        <div class="mid">
+          {% if unlimited and user.status.value == 'active' %}
+            <div class="pct">∞</div>
+            <div class="cap">حجم نامحدود</div>
+          {% else %}
+            <div class="pct">{{ pct | round(0) | int }}%</div>
+            <div class="cap">مصرف شده</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="verdict">
+        {% if unlimited and user.status.value == 'active' %}
+          <b>{{ used | bytesformat }}</b> مصرف کردی — سقفی نداری
+        {% elif not unlimited %}
+          از <b>{{ limit | bytesformat }}</b> — <b>{{ ((limit - used) if limit > used else 0) | bytesformat }}</b> مانده
+        {% else %}
+          {{ used | bytesformat }} مصرف شده
+        {% endif %}
+      </div>
+
+      {# ---------- tiles ---------- #}
+      <div class="tiles">
+        <div class="tile">
+          <div class="k">حجم مصرفی</div>
+          <div class="v">{{ used | bytesformat }}</div>
+        </div>
+
+        <div class="tile">
+          <div class="k">حجم باقی‌مانده</div>
+          <div class="v">
+            {%- if unlimited %}∞{% else %}{{ ((limit - used) if limit > used else 0) | bytesformat }}{% endif -%}
+          </div>
+        </div>
+
+        <div class="tile">
+          <div class="k">تاریخ انقضا</div>
+          {# Gregorian is what the server can render; the script below upgrades it
+             to the Persian calendar when JS is available. #}
+          <div class="v" style="font-size:13px">
+            {%- if user.expire -%}
+              <span class="gdate" data-ts="{{ user.expire.timestamp() | int }}">{{ user.expire | datetime }}</span>
+            {%- else -%}
+              بدون انقضا
+            {%- endif -%}
+          </div>
+        </div>
+
+        <div class="tile">
+          <div class="k">روزهای باقی‌مانده</div>
+          <div class="v">
+            {%- if user.expire %}
+              {%- set left = ((user.expire - now()).days) %}
+              {%- if left < 0 %}0 <em>روز</em>{% else %}{{ left }} <em>روز</em>{% endif -%}
+            {%- elif user.on_hold_expire_duration %}
+              {{ (user.on_hold_expire_duration / 86400) | int }} <em>روز</em>
+            {%- else %}∞{% endif -%}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ---------- configs ---------- #}
+    <div class="sec">
+      <div class="sh">
+        <h2>کانفیگ‌های تو</h2>
+        <span class="n">{{ links | length }}</span>
+      </div>
+      {% if links %}
+      <div class="rows">
+        {% for link in links %}
+        {% set proto = link.split('://')[0] | lower %}
+        <div class="row">
+          <span class="tag {{ proto }}">{{ proto }}</span>
+          <span class="url" title="{{ link }}">{{ link }}</span>
+          <span class="acts">
+            <button class="ib copy" type="button" data-copy="{{ link }}" title="کپی" aria-label="کپی">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="ib qrbtn" type="button" data-qr="{{ link }}" title="کد QR" aria-label="کد QR">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><path d="M14 14h3v3h-3zM19.5 14v.01M20 19.5h.01M14 20v.01M17 20v.01"/></svg>
+            </button>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">هنوز کانفیگی نداری. اگر تازه ساختی، چند لحظه بعد صفحه را تازه کن.</div>
+      {% endif %}
+    </div>
+
+    {# ---------- apps ---------- #}
+    {% if apps %}
+    <div class="sec">
+      <div class="sh"><h2>اتصال با یک لمس</h2></div>
+      <div class="apps">
+        {% for app in apps %}
+        <a class="app" href="{{ app.import_url }}" target="_blank" rel="noopener">
+          {% if app.icon_url %}<img src="{{ app.icon_url }}" alt="" loading="lazy">{% endif %}
+          <span class="nm">{{ app.name }}</span>
+          <span class="go">↗</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ---------- footer ---------- #}
+    <div class="foot">
+      <span class="by">
+        {% include "subscription/cat.svg" %}&nbsp;ساخته‌شده توسط <b>{{ BRAND }}</b>
+      </span>
+      {% if SUPPORT %}
+      <a href="{{ SUPPORT }}" target="_blank" rel="noopener">
+        پشتیبانی
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-9A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+      </a>
+      {% endif %}
+    </div>
+
+  </section>
+</main>
+
+{# ---------- QR sheet ---------- #}
+<div class="sheet" id="sheet">
+  <div class="box">
+    <h3>اسکن کن</h3>
+    <p class="hint">با دوربین گوشی یا خود اپ VPN اسکن کن.</p>
+    <div class="qr" id="qrbox"></div>
+    <div class="full" id="qrurl"></div>
+    <div class="btns">
+      <button class="btn go" type="button" id="sheetcopy">کپی لینک</button>
+      <button class="btn" type="button" id="sheetclose">بستن</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>{% include "subscription/qrcode.js" %}</script>
+<script>{% include "subscription/jalali.js" %}</script>
+<script>
+(function(){
+  "use strict";
+  var toast = document.getElementById('toast'), tmr;
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('on');
+    clearTimeout(tmr);
+    tmr = setTimeout(function(){ toast.classList.remove('on'); }, 1700);
+  }
+
+  // ---- copy, with a fallback for the in-app browsers that block the API ----
+  function put(text){
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function(){ return true; }, function(){ return legacy(text); });
+    }
+    return Promise.resolve(legacy(text));
+  }
+  function legacy(text){
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly','');
+      ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, ta.value.length);
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch(e){ return false; }
+  }
+
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest ? ev.target.closest('.copy') : null;
+    if (!b) return;
+    put(b.getAttribute('data-copy')).then(function(ok){
+      say(ok ? 'کپی شد ✓' : 'کپی نشد — دستی انتخاب کن');
+      if (ok) { b.classList.add('done'); setTimeout(function(){ b.classList.remove('done'); }, 1300); }
+    });
+  });
+
+  // ---- QR sheet --------------------------------------------------------
+  var sheet = document.getElementById('sheet'),
+      qrbox = document.getElementById('qrbox'),
+      qrurl = document.getElementById('qrurl'),
+      cur = '';
+
+  function open(link){
+    cur = link;
+    qrbox.innerHTML = '';
+    qrurl.textContent = link;
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    try {
+      new QRCode(qrbox, {
+        text: link,
+        width: 222, height: 222,
+        colorDark: '#14082b', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e){
+      qrbox.innerHTML = '<div style="width:222px;height:222px;display:grid;place-items:center;color:#666;font-size:12px;text-align:center;padding:10px">ساخت کد QR<br>ممکن نشد</div>';
+    }
+  }
+  function close(){
+    sheet.classList.remove('open');
+    document.body.style.overflow = '';
+    qrbox.innerHTML = '';
+  }
+
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest ? ev.target.closest('.qrbtn') : null;
+    if (b) open(b.getAttribute('data-qr'));
+  });
+  document.getElementById('sheetclose').addEventListener('click', close);
+  sheet.addEventListener('click', function(ev){ if (ev.target === sheet) close(); });
+  document.getElementById('sheetcopy').addEventListener('click', function(){
+    put(cur).then(function(ok){ say(ok ? 'کپی شد ✓' : 'کپی نشد'); });
+  });
+  document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') close(); });
+
+  // ---- dates: Gregorian -> Persian calendar ----------------------------
+  // The server can only render Gregorian (the panel's JALALI_EXPIRE_DATE is
+  // not exposed to templates). If this script runs, every <span class="gdate">
+  // is rewritten; if it does not, the Gregorian text stays and the page is
+  // still usable. The conversion itself is verified against Python's
+  // jdatetime -- see tools/check-jalali.js.
+  (function(){
+    if (!window.CWJalali) return;
+    var nodes = document.querySelectorAll('.gdate[data-ts]');
+    for (var i = 0; i < nodes.length; i++) {
+      var ts = parseInt(nodes[i].getAttribute('data-ts'), 10);
+      if (!ts) continue;
+      try {
+        var d = new Date(ts * 1000);            // browser's own timezone
+        var j = CWJalali.g2j(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        var two = function(n){ return n < 10 ? '0' + n : '' + n; };
+        nodes[i].textContent = j.jy + '/' + two(j.jm) + '/' + two(j.jd);
+        nodes[i].setAttribute('title', j.jd + ' ' + CWJalali.MONTHS[j.jm - 1] + ' ' + j.jy);
+      } catch (e) { /* leave the Gregorian text in place */ }
+    }
+  })();
+
+  // ---- dial animation --------------------------------------------------
+  requestAnimationFrame(function(){
+    var a = document.getElementById('arc');
+    if (!a) return;
+    var C = 326.7, pct = parseFloat(a.getAttribute('data-pct')) || 0;
+    if (pct <= 0) { a.style.strokeDashoffset = C; return; }
+    setTimeout(function(){ a.style.strokeDashoffset = (C * (1 - Math.min(pct, 100) / 100)).toFixed(2); }, 90);
+  });
+})();
+</script>
+</body>
+</html>
