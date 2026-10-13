@@ -26,7 +26,16 @@ die() { printf '[entrypoint] FATAL: %s\n' "$*" >&2; exit 1; }
 # PasarGuard reads these from disk and prefers them over its own. Copied on
 # every boot so an image update also refreshes the page.
 if cp -f /opt/templates/subscription/* "$DATA_DIR/templates/subscription/" 2>/dev/null; then
-  log "subscription page template installed"
+  # Which page is live matters more than it sounds. An older build of this repo
+  # shipped a different one, and from the outside both just look like "the page
+  # is wrong" -- there is no way to tell them apart. So the size and a marker go
+  # into the deploy log, where anyone can read them.
+  PAGE="$DATA_DIR/templates/subscription/index.html"
+  if [ -f "$PAGE" ]; then
+    log "subscription page: $(wc -c < "$PAGE") bytes, current-version markers: $(grep -c 'segs' "$PAGE" 2>/dev/null || echo 0)"
+  else
+    log "WARNING: the subscription template copied but index.html is missing"
+  fi
 else
   log "WARNING: could not install the subscription page template"
 fi
