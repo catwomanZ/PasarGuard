@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="CATWOMAN Panel">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b0f33"/>
+      <stop offset=".45" stop-color="#3d1152"/>
+      <stop offset=".78" stop-color="#6b1450"/>
+      <stop offset="1" stop-color="#0f1233"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset=".5" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#f0388f"/>
+    </linearGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".6" stop-color="#f0c8ff"/>
+      <stop offset="1" stop-color="#a5f3fc"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#f0388f" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#f0388f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="round"><rect x="0" y="0" width="1200" height="300" rx="0"/></clipPath>
+    <style>
+      .t1{font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-weight:800}
+      .t2{font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-weight:500}
+      .mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
+    </style>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <rect width="1200" height="300" fill="url(#g)"/>
+    <circle cx="1080" cy="40" r="300" fill="url(#glow1)"/>
+    <circle cx="120" cy="270" r="260" fill="url(#glow2)"/>
+
+    <!-- faint grid -->
+    <g opacity=".09" stroke="#ffffff" stroke-width="1">
+      <path d="M0 60h1200M0 120h1200M0 180h1200M0 240h1200"/>
+      <path d="M100 0v300M250 0v300M400 0v300M550 0v300M700 0v300M850 0v300M1000 0v300M1150 0v300"/>
+    </g>
+
+    <!-- big cat watermark, bottom-left, bleeding off the edge -->
+    <g transform="translate(30,96) scale(9)" opacity=".055" fill="#ffffff">
+      <path d="M3.2 3.4C3 2.4 4 1.6 4.9 2L9.4 4.4c.8-.4 1.7-.6 2.6-.6s1.8.2 2.6.6L19.1 2c.9-.4 1.9.4 1.7 1.4l-1.1 6.2c.8 1.5 1.3 2.9 1.3 4.2 0 4.8-4.1 8-9 8s-9-3.2-9-8c0-1.3.5-2.7 1.3-4.2L3.2 3.4Zm6.1 10a1.6 1.9 0 1 0 3.2 0 1.6 1.9 0 1 0-3.2 0Zm5.4 0a1.6 1.9 0 1 0 3.2 0 1.6 1.9 0 1 0-3.2 0Z"/>
+    </g>
+
+    <!-- badge -->
+    <g transform="translate(72,58)">
+      <rect width="84" height="84" rx="24" fill="url(#edge)"/>
+      <g transform="translate(20,20) scale(1.85)" fill="#0b0616">
+        <path d="M3.2 3.4C3 2.4 4 1.6 4.9 2L9.4 4.4c.8-.4 1.7-.6 2.6-.6s1.8.2 2.6.6L19.1 2c.9-.4 1.9.4 1.7 1.4l-1.1 6.2c.8 1.5 1.3 2.9 1.3 4.2 0 4.8-4.1 8-9 8s-9-3.2-9-8c0-1.3.5-2.7 1.3-4.2L3.2 3.4Zm6.1 10a1.6 1.9 0 1 0 3.2 0 1.6 1.9 0 1 0-3.2 0Zm5.4 0a1.6 1.9 0 1 0 3.2 0 1.6 1.9 0 1 0-3.2 0Z"/>
+      </g>
+    </g>
+
+    <!-- wordmark -->
+    <text x="186" y="112" font-size="54" letter-spacing="1.5" fill="url(#txt)" class="t1">CATWOMAN</text>
+    <text x="188" y="146" font-size="15.5" letter-spacing="4.6" fill="#b9b3d0" class="t2">SUBSCRIPTION PANEL</text>
+
+    <!-- rule -->
+    <rect x="188" y="164" width="150" height="3" rx="1.5" fill="url(#edge)"/>
+
+    <!-- chips -->
+    <g class="mono" font-size="13.5" font-weight="600">
+      <g transform="translate(188,190)">
+        <rect width="112" height="30" rx="15" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.16)"/>
+        <text x="56" y="20" text-anchor="middle" fill="#a5f3fc">PasarGuard 5</text>
+      </g>
+      <g transform="translate(310,190)">
+        <rect width="76" height="30" rx="15" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.16)"/>
+        <text x="38" y="20" text-anchor="middle" fill="#c4b5fd">Xray core</text>
+      </g>
+      <g transform="translate(396,190)">
+        <rect width="118" height="30" rx="15" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.16)"/>
+        <text x="59" y="20" text-anchor="middle" fill="#fbcfdf">Railway ready</text>
+      </g>
+      <g transform="translate(524,190)">
+        <rect width="96" height="30" rx="15" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.16)"/>
+        <text x="48" y="20" text-anchor="middle" fill="#a7f3d0">One service</text>
+      </g>
+    </g>
+
+    <!-- baseline -->
+    <text x="188" y="252" font-size="14" fill="#8d87a6" class="t2">Persian subscription page &#183; live ping &#183; one-tap connect</text>
+  </g>
+
+  <!-- top hairline -->
+  <rect x="0" y="0" width="1200" height="3" fill="url(#edge)"/>
+</svg>
