@@ -502,6 +502,89 @@ def ensure_group(token) -> int | None:
 
 
 # ---------------------------------------------------------------------------
+# step 5 - the one-tap app tiles
+# ---------------------------------------------------------------------------
+# These are the "connect with one tap" buttons on the subscription page. The
+# panel ships an empty list, so without this the page has no app tiles at all
+# and no quick-connect button. Each import_url is a deep link the panel resolves
+# by replacing {url} with the subscription address.
+#
+# icon_url is deliberately empty for every one of them: the page draws its own
+# inline glyph. Pulling the real logos would mean the subscription page asks a
+# third-party server for an image every time it opens, which leaks that someone
+# opened it and leaves a blank square whenever that server is unreachable.
+APPS = [
+    {
+        "name": "v2rayNG",
+        "platform": "android",
+        "import_url": "v2rayng://install-sub?url={url}",
+        "recommended": True,
+        "description": {"fa": "اندروید - سبک و سریع، پیشنهاد ما",
+                        "en": "Android - lightweight and fast"},
+    },
+    {
+        "name": "Hiddify",
+        "platform": "android",
+        "import_url": "hiddify://import/{url}",
+        "description": {"fa": "اندروید، آیفون و ویندوز", "en": "Android, iOS and Windows"},
+    },
+    {
+        "name": "V2Box",
+        "platform": "ios",
+        "import_url": "v2box://install-sub?url={url}",
+        "description": {"fa": "آیفون و آیپد", "en": "iPhone and iPad"},
+    },
+    {
+        "name": "Streisand",
+        "platform": "ios",
+        "import_url": "streisand://import/{url}",
+        "description": {"fa": "آیفون و آیپد", "en": "iPhone and iPad"},
+    },
+    {
+        "name": "NekoBox",
+        "platform": "android",
+        "import_url": "sn://subscription?url={url}",
+        "description": {"fa": "اندروید", "en": "Android"},
+    },
+    {
+        "name": "Happ",
+        "platform": "ios",
+        "import_url": "happ://add/{url}",
+        "description": {"fa": "آیفون، آیپد و مک", "en": "iOS and macOS"},
+    },
+]
+
+
+def ensure_apps(token):
+    """Fill in the app tiles, but only when the list is still empty.
+
+    Never overwrites a list that is already there: someone may have curated
+    their own apps in the panel, and silently replacing that on every boot
+    would be worse than shipping the default. Set SUB_APPS=0 to skip entirely.
+    """
+    if os.environ.get("SUB_APPS", "1") != "1":
+        log("app tiles skipped (SUB_APPS is off)")
+        return
+
+    code, settings = call("/api/settings", token=token)
+    if code != 200 or not isinstance(settings, dict):
+        warn(f"could not read settings: HTTP {code}")
+        return
+
+    sub = settings.get("subscription") or {}
+    if sub.get("applications"):
+        log(f"app tiles already configured ({len(sub['applications'])})")
+        return
+
+    sub["applications"] = [dict(app, icon_url="", download_links=[]) for app in APPS]
+    code, res = call("/api/settings", "PUT", {"subscription": sub}, token=token)
+    if code == 200:
+        log(f"app tiles added ({len(APPS)})")
+    else:
+        warn(f"app tiles failed: HTTP {code} {res}")
+
+
+# ---------------------------------------------------------------------------
 # step 5 - branding
 # ---------------------------------------------------------------------------
 def ensure_branding(token):
@@ -559,6 +642,7 @@ def main() -> int:
     ensure_host(token)
     ensure_group(token)
     ensure_branding(token)
+    ensure_apps(token)
 
     log("bootstrap complete")
     return 0
