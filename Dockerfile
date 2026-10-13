@@ -17,23 +17,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/nginx /var/lib/nginx/body /var/log/nginx
 
+# Unpack in a scratch directory and move only the files we want.
+#
+# Never unzip straight into /usr/local/bin. Both release archives carry their
+# own README.md, and the panel image already has one at that path, so unzip
+# stops to ask "replace /usr/local/bin/README.md?" -- there is no one to answer
+# during a build, it reads EOF, treats that as "no", and the build dies with
+# exit code 1. Extracting elsewhere sidesteps the prompt entirely instead of
+# papering over it with -o.
+
 # Xray core. The node runs it; the node binary does not ship one.
 RUN set -eux; \
     curl -fsSL -o /tmp/xray.zip \
       "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-linux-64.zip"; \
-    unzip -q /tmp/xray.zip -d /usr/local/bin; \
-    rm -f /tmp/xray.zip; \
-    chmod +x /usr/local/bin/xray; \
+    mkdir -p /tmp/xray; \
+    unzip -q /tmp/xray.zip -d /tmp/xray; \
+    install -m 0755 /tmp/xray/xray /usr/local/bin/xray; \
+    install -m 0644 /tmp/xray/geoip.dat /usr/local/bin/geoip.dat; \
+    install -m 0644 /tmp/xray/geosite.dat /usr/local/bin/geosite.dat; \
+    rm -rf /tmp/xray /tmp/xray.zip; \
     /usr/local/bin/xray version
 
 # The node itself.
 RUN set -eux; \
     curl -fsSL -o /tmp/node.zip \
       "https://github.com/PasarGuard/node/releases/download/${NODE_VERSION}/pasarguard-node-linux-amd64.zip"; \
-    unzip -q /tmp/node.zip -d /usr/local/bin; \
-    rm -f /tmp/node.zip; \
-    mv /usr/local/bin/pasarguard-node-linux-amd64 /usr/local/bin/pasarguard-node; \
-    chmod +x /usr/local/bin/pasarguard-node
+    mkdir -p /tmp/node; \
+    unzip -q /tmp/node.zip -d /tmp/node; \
+    install -m 0755 /tmp/node/pasarguard-node-linux-amd64 /usr/local/bin/pasarguard-node; \
+    rm -rf /tmp/node /tmp/node.zip; \
+    /usr/local/bin/pasarguard-node --help >/dev/null 2>&1 || true; \
+    test -x /usr/local/bin/pasarguard-node
 
 COPY nginx.conf.template /opt/nginx.conf.template
 COPY entrypoint.sh       /opt/entrypoint.sh

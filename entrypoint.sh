@@ -3,7 +3,10 @@
 set -uo pipefail
 
 DATA_DIR="${DATA_DIR:-/var/lib/pasarguard}"
-HTTP_PORT="${HTTP_PORT:-8080}"
+# HTTP_PORT wins if it is set; otherwise follow Railway's PORT; otherwise 8080.
+# Railway routes its edge to the port it injects, so ignoring PORT here would
+# leave nginx listening on a port the world is not pointed at.
+HTTP_PORT="${HTTP_PORT:-${PORT:-8080}}"
 PANEL_PORT="${PANEL_PORT:-8000}"
 NODE_PORT="${NODE_PORT:-62050}"
 NODE_API_PORT="${NODE_API_PORT:-62051}"
