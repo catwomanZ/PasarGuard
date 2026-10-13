@@ -165,7 +165,7 @@ nginx -c /tmp/nginx.conf -g 'daemon off;' &
   # having to import the link into a phone and guess.
   PANEL_URL="http://127.0.0.1:$PANEL_PORT" \
   HTTP_PORT="$HTTP_PORT" \
-  PUBLIC_HOST="${PUBLIC_HOST:-${RAILWAY_PUBLIC_DOMAIN:-}}" \
+  PUBLIC_HOST="${RAILWAY_PUBLIC_DOMAIN:-${PUBLIC_HOST:-}}" \
   TUNNEL_PATH="$TUNNEL_PATH" \
   ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
   ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}" \

@@ -400,11 +400,37 @@ def wait_for_node(token, node_id, seconds=90) -> bool:
 # step 4 - host, group
 # ---------------------------------------------------------------------------
 def public_host() -> str:
-    host = os.environ.get("PUBLIC_HOST", "").strip()
+    """The address the configs will carry. Returns "" if there is none.
+
+    RAILWAY_PUBLIC_DOMAIN wins over PUBLIC_HOST, and that order matters.
+
+    PUBLIC_HOST is something a person typed, once, and it does not update itself.
+    If the domain is ever regenerated in the Railway dashboard the typed value
+    goes stale and every config keeps pointing at an address that no longer
+    answers -- while the subscription page still works, because that page builds
+    its own URL from the address the browser actually used. So the symptom is
+    "the page is fine but every config is dead", which reads like a broken
+    tunnel and is not one. That is exactly what happened here.
+
+    RAILWAY_PUBLIC_DOMAIN is injected by the platform on every boot and follows
+    the service, so it is the one that cannot be wrong. PUBLIC_HOST stays as a
+    fallback for a container that is not on Railway at all.
+    """
+    manual = os.environ.get("PUBLIC_HOST", "").strip()
+    platform = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+
+    if manual and platform and manual != platform:
+        warn(f"PUBLIC_HOST says '{manual}' but this service answers on '{platform}'")
+        warn("  using the platform address -- configs must point at the domain that works")
+        warn("  (a stale PUBLIC_HOST is why configs can look fine and never connect)")
+    elif manual and not platform:
+        log(f"using PUBLIC_HOST '{manual}' (no RAILWAY_PUBLIC_DOMAIN to compare against)")
+
+    host = platform or manual
     if host:
-        return host
-    # Railway sets this for any service that has a public domain attached
-    return os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        source = "RAILWAY_PUBLIC_DOMAIN" if platform else "PUBLIC_HOST"
+        log(f"configs will be built for {host} ({source})")
+    return host
 
 
 def host_body(host: str) -> dict:

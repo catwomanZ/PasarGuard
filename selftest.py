@@ -224,9 +224,22 @@ def client_config(link: str, path: str) -> tuple[dict, str] | None:
     # link has no host= parameter, so that is what we send too.
     host_header = one("host") or one("sni") or PUBLIC_HOST or (u.hostname or "")
     log(
-        "link from the panel: host=%s sni=%s path=%s"
-        % (one("host") or "(missing)", one("sni") or "(missing)", path)
+        "link from the panel: address=%s port=%s host=%s sni=%s path=%s"
+        % (
+            u.hostname or "?",
+            u.port or "?",
+            one("host") or "(missing)",
+            one("sni") or "(missing)",
+            path,
+        )
     )
+    # The address in the link has to match the address this service answers on,
+    # or the config points somewhere that does not exist. That mismatch is
+    # invisible everywhere else -- the sub page builds its own URL, so it keeps
+    # working while every config is dead.
+    if PUBLIC_HOST and (u.hostname or "") != PUBLIC_HOST:
+        log(f"  WARNING: the link says '{u.hostname}' but this service is '{PUBLIC_HOST}'")
+        log("  WARNING: that config cannot connect -- the panel's host record is stale")
     cfg = {
         "log": {"loglevel": "warning"},
         "inbounds": [
@@ -290,9 +303,6 @@ def curl(url: str, proxy: str | None = None, timeout: int = 25) -> str:
 
 def main() -> int:
     log(f"panel {PANEL_URL}, tunnel on 127.0.0.1:{HTTP_PORT}{TUNNEL_PATH}")
-    if not os.path.exists(XRAY_BIN):
-        log(f"no xray core at {XRAY_BIN} -- skipping")
-        return 0
 
     # 1. can this container reach the internet at all? Without this every
     #    tunnel failure below would be blamed on the tunnel.
@@ -303,6 +313,18 @@ def main() -> int:
         log(f"direct egress FAILED (curl said {direct}) -- the container itself has no internet")
         log("nothing below this line can pass, stopping here")
         return 0
+
+    # Does the address the configs will carry actually serve this panel?
+    # Everything else here tests 127.0.0.1 and would happily pass while the
+    # public address is a stale domain nobody answers on.
+    if PUBLIC_HOST:
+        code = curl(f"https://{PUBLIC_HOST}/healthz", timeout=25)
+        if code in OK_CODES:
+            log(f"public address OK ({code}) -- {PUBLIC_HOST} reaches this container")
+        else:
+            log(f"public address FAILED -- https://{PUBLIC_HOST}/healthz said {code}")
+            log("  configs pointing at this address cannot connect, however healthy the tunnel is")
+            log("  (if the domain was regenerated, the panel's host record is stale)")
 
     token = login()
     if not token:
@@ -324,6 +346,10 @@ def main() -> int:
             return 0
         cfg, host_header = built
         log(f"connecting to 127.0.0.1:{HTTP_PORT} with Host: {host_header or '(none)'}")
+        if not os.path.exists(XRAY_BIN):
+            log(f"no xray core at {XRAY_BIN} -- stopping before the tunnel run")
+            return 0
+
         cfg_path = os.path.join(tmpdir, "client.json")
         with open(cfg_path, "w") as fh:
             json.dump(cfg, fh, indent=1)
